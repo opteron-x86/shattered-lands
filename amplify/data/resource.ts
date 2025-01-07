@@ -32,7 +32,7 @@ const schema = a.schema({
 
   Kingdom: a
     .model({
-      name: a.string
+      name: a.string,
 
       // Resources, buildings, troops can be stored as JSON for now
       resources: a.json(), 
