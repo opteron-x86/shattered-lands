@@ -2,42 +2,31 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 
 const schema = a.schema({
+  // 1) "User" model
   User: a
     .model({
       username: a.string().required(),
-      createdAt: a.datetime(),
-      updatedAt: a.datetime(),
-
-      /**
-       * The user "hasMany" kingdoms.
-       * 1) First argument: the remote model's name ("Kingdom")
-       * 2) Second argument: the remote model’s field name that references THIS model, 
-       *    which we’ll set to "userID" in the Kingdom model.
-       */
-      kingdoms: a.hasMany('Kingdom', 'userID'),
+      // This user can have many Kingdom records.
+      // (1) modelName = "Kingdom"
+      // (2) references = the remote model's field referencing THIS model.
+      //    We'll call it "user", see below in Kingdom.
+      kingdoms: a.hasMany('Kingdom', 'user'),
     })
     .authorization((rules) => [rules.owner()]),
 
+  // 2) "Kingdom" model
   Kingdom: a
     .model({
       name: a.string().required(),
-
-      // Example JSON fields
       resources: a.json(),
       buildings: a.json(),
       troops: a.json(),
 
-      createdAt: a.datetime(),
-      updatedAt: a.datetime(),
-
-      /**
-       * The Kingdom "belongsTo" a User
-       * 1) "User" is the remote model name
-       * 2) "id" is the field in User we reference (the primary key)
-       * 3) config object => { targetName: 'userID' } 
-       *    means we'll store 'userID' in the Kingdom table as a foreign key referencing User.id
-       */
-      user: a.belongsTo('User', 'id', { targetName: 'userID' }),
+      // This kingdom "belongsTo" a User.
+      // (1) modelName = "User"
+      // (2) references = the remote model's primary key,
+      //    typically "id" if you're referencing User.id.
+      user: a.belongsTo('User', 'id'),
     })
     .authorization((rules) => [rules.owner()]),
 });
