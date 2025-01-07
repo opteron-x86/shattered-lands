@@ -1,4 +1,4 @@
-import { type ClientSchema, a, } from '@aws-amplify/backend';
+import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 
 const schema = a.schema({
   User: a
@@ -12,4 +12,6 @@ const schema = a.schema({
 
 export type Schema = ClientSchema<typeof schema>;
 
-
+export const data = defineData({
+  schema,
+});
