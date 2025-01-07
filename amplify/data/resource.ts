@@ -1,53 +1,70 @@
+// amplify/data/resource.ts
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 
-/*== STEP 1 ===============================================================
-The section below creates a Todo database table with a "content" field. Try
-adding a new "isDone" field as a boolean. The authorization rule below
-specifies that any unauthenticated user can "create", "read", "update", 
-and "delete" any "Todo" records.
-=========================================================================*/
+/**
+ * 1) Define your schema using the `a.schema` builder.
+ *    Here we have two models: `User` and `Fiefdom`.
+ *
+ *    - `User` has fields like `username` and `race`.
+ *    - `Fiefdom` belongs to a `User` via a foreign key `userID`.
+ *
+ *    We also apply basic owner-based auth to each model:
+ *    only the record owner can create/update/delete,
+ *    but you can tweak as needed.
+ */
 const schema = a.schema({
-  Todo: a
+  // Remove or rename your original 'Todo' model if you no longer need it.
+  // e.g., 'Todo' -> 'User' or just remove it entirely.
+
+  User: a
     .model({
-      content: a.string(),
+      username: a.string({ isRequired: true }),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+
+      // If you want a "hasMany" relationship from User -> Fiefdom
+      // you can define it here; see below for Fiefdom's belongsTo
+      // (We'll rely on the Fiefdom's foreign key to link back to User).
     })
-    .authorization((allow) => [allow.owner()]),
+    .authorization((rules) => [
+      rules.owner(), // Only the owner can read/update/delete their own User record
+    ]),
+
+  Kingdom: a
+    .model({
+      name: a.string
+
+      // Resources, buildings, troops can be stored as JSON for now
+      resources: a.json(), 
+      buildings: a.json(),
+      troops: a.json(),
+
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+
+      // Link back to the User
+      // By default, Amplify will create a 'userID' field in DynamoDB
+      // to track the relationship if we specify `belongsTo`.
+      user: a.belongsTo({ targetName: 'userID' }),
+    })
+    .authorization((rules) => [
+      rules.owner(), // Only the record owner can mutate their own Fiefdom data
+    ]),
 });
 
+/**
+ * 2) Export the schema type so Amplify can correctly infer the types of your data.
+ */
 export type Schema = ClientSchema<typeof schema>;
 
+/**
+ * 3) Define your data resource.
+ *    - The `schema` is passed in so Amplify knows what models to provision.
+ *    - Configure your default auth mode (e.g., userPool).
+ */
 export const data = defineData({
   schema,
   authorizationModes: {
     defaultAuthorizationMode: 'userPool',
   },
 });
-
-/*== STEP 2 ===============================================================
-Go to your frontend source code. From your client-side code, generate a
-Data client to make CRUDL requests to your table. (THIS SNIPPET WILL ONLY
-WORK IN THE FRONTEND CODE FILE.)
-
-Using JavaScript or Next.js React Server Components, Middleware, Server 
-Actions or Pages Router? Review how to generate Data clients for those use
-cases: https://docs.amplify.aws/gen2/build-a-backend/data/connect-to-API/
-=========================================================================*/
-
-/*
-"use client"
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
-
-const client = generateClient<Schema>() // use this Data client for CRUDL requests
-*/
-
-/*== STEP 3 ===============================================================
-Fetch records from the database and use them in your frontend component.
-(THIS SNIPPET WILL ONLY WORK IN THE FRONTEND CODE FILE.)
-=========================================================================*/
-
-/* For example, in a React component, you can use this snippet in your
-  function's RETURN statement */
-// const { data: todos } = await client.models.Todo.list()
-
-// return <ul>{todos.map(todo => <li key={todo.id}>{todo.content}</li>)}</ul>
