@@ -1,45 +1,76 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import type { Schema } from "../amplify/data/resource";
-import { generateClient } from "aws-amplify/data";
+import type { Schema } from '../amplify/data/resource';
+import { generateClient } from 'aws-amplify/data';
 
 const client = generateClient<Schema>();
 
 function App() {
   const { user, signOut } = useAuthenticator();
-  const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
+
+  // We'll store the "User" record from DynamoDB here
+  const [dbUser, setDbUser] = useState<Schema['User']['type'] | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    client.models.Todo.observeQuery().subscribe({
-      next: (data) => setTodos([...data.items]),
-    });
-  }, []);
+    // If the user is not signed in yet, do nothing
+    if (!user) return;
 
-  function createTodo() {
-    client.models.Todo.create({ content: window.prompt("Todo content") });
+    // The Cognito username might be in user.username or user.signInDetails.loginId, 
+    // depending on your configuration. Adjust as needed:
+    const cognitoUsername = user.signInDetails?.loginId || user.username || 'Unknown';
+
+    // 1) Try to find an existing record in the "User" model with matching username
+    //    (In a real app, you might store the Cognito "sub" instead, to ensure uniqueness).
+    const subscription = client.models.User
+      .observeQuery((u) => u.username('eq', cognitoUsername))
+      .subscribe({
+        next: async (snapshot) => {
+          const items = snapshot.items;
+          if (items.length > 0) {
+            // Found existing user in DB
+            setDbUser(items[0]);
+            setLoading(false);
+          } else {
+            // No record found, create one
+            const newRecord = await client.models.User.create({
+              username: cognitoUsername,
+            });
+            setDbUser(newRecord);
+            setLoading(false);
+          }
+        },
+        error: (err) => {
+          console.error('Failed to query User:', err);
+          setLoading(false);
+        },
+      });
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
+
+  if (!user) {
+    // If the user is not logged in, you might show a loading screen or a sign-in page
+    return <p>Please sign in...</p>;
   }
 
-    
-  function deleteTodo(id: string) {
-    client.models.Todo.delete({ id })
+  if (loading) {
+    return <p>Loading user data...</p>;
   }
 
   return (
     <main>
-      <h1>{user?.signInDetails?.loginId}'s todos</h1>
-      <button onClick={createTodo}>+ new</button>
-      <ul>
-        {todos.map((todo) => (
-          <li onClick={() => deleteTodo(todo.id)} key={todo.id}>{todo.content}</li>
-        ))}
-      </ul>
-      <div>
-        🥳 App successfully hosted. Try creating a new todo.
-        <br />
-        <a href="https://docs.amplify.aws/react/start/quickstart/#make-frontend-updates">
-          Review next step of this tutorial.
-        </a>
-      </div>
+      <h1>Welcome, {dbUser?.username || 'New User'}!</h1>
+      <p>Signed in via Cognito ID: {user?.signInDetails?.loginId}</p>
+
+      <p>
+        Here’s a basic “user dashboard.” In the future, you can display fiefdoms,
+        resources, or other game data linked to this user record.
+      </p>
+
       <button onClick={signOut}>Sign out</button>
     </main>
   );
